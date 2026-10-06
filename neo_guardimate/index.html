@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<!-- ================================================================
+  NEO GUARDIMATE — 독립 실행 리디자인 (iOS / Instagram inspired)
+  ----------------------------------------------------------------
+  * 이 폴더(neo_guardimate/)는 자체 js/ 사본을 가진 독립 앱입니다.
+    이 파일만 열면 실행됩니다 (원본 프로젝트와 분리).
+  * 기존 js/ 로직을 그대로 재사용하므로 JS가 참조하는 요소 id·data-*
+    속성·토글 클래스·마커/툴팁 클래스·CSS 변수(--blue/--green/--orange
+    /--dim/--panel2 …)는 원본과 동일하게 유지합니다. 시각 디자인만 새로
+    작성했습니다.
+  * 디자인 방향: Apple iOS의 그룹형 인셋 리스트 + 부드러운 스퀘어클
+    (둥근 모서리) + 프로스티드 내비게이션 바 + iMessage 스타일 말풍선,
+    그리고 Instagram 그라디언트 액센트. 라이트 모드 기반의 깔끔한 룩.
+================================================================ -->
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>GUARDIMATE</title>
+<!-- 브라우저 탭/앱 아이콘 : 테마에 맞춰 JS가 교체 -->
+<link rel="icon" type="image/png" id="favicon" href="logos/light.png">
+<link rel="apple-touch-icon" id="appleIcon" href="logos/light.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* ============================================================
+   디자인 토큰 (변수명은 원본과 동일 · 값은 iOS 시스템 팔레트)
+   ============================================================ */
+:root{
+  /* 🔒 신뢰형 팔레트 : 라이트 그레이 배경 + 다크 네이비 + 다크 포레스트 그린 */
+  --bg:#eceef1;          /* 라이트 그레이 배경 */
+  --panel:#ffffff;       /* 카드(그룹 셀) */
+  --panel2:#e6e9ee;      /* 입력·보조 채움 */
+  --line:rgba(30,50,70,.14);   /* 구분선 */
+  --blue:#1e4d78;        /* 다크 네이비(주요 액센트·안전 경로) */
+  --blue-soft:#2f6ea3;   /* 밝은 네이비(링크·보조) */
+  --green:#1f7a4d;       /* 다크 포레스트 그린(안전/활성) */
+  --green-ink:#146c43;   /* 밝은 톤 배경 위 그린 텍스트(대비 확보) */
+  --red:#c0392b;         /* 차분한 경고 레드 */
+  --orange:#b9760f;      /* 차분한 경고 앰버 */
+  --violet:#4a5b8c;      /* 커뮤니티 제보(슬레이트 인디고) */
+  --text:#1b2430;        /* 다크 슬레이트 라벨 */
+  --dim:#5f6b7a;         /* 보조 라벨(슬레이트 그레이) */
+  --radius:18px;
+  --accent:#1e4d78;      /* 브랜드 액센트(단색) — 그라디언트 대신 차분한 단색 사용 */
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  background:linear-gradient(180deg,#cfd4da,#bcc2ca);
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Pretendard','Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+  display:flex; justify-content:center; align-items:flex-start;
+  min-height:100vh; padding:16px 0; color:var(--text);
+}
+::selection{background:rgba(30,77,120,.25)}
+
+/* ---------- 폰 프레임 ---------- */
+.phone{
+  width:394px; max-width:100vw; height:820px; max-height:96vh;
+  background:var(--bg); overflow:hidden; position:relative;
+  display:flex; flex-direction:column;
+  border-radius:46px; border:1px solid rgba(0,0,0,.06);
+  box-shadow:0 30px 70px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.14);
+  color:var(--text);
+}
+
+/* ---------- 헤더 (프로스티드 내비바) ---------- */
+header{
+  padding:16px 20px 12px; display:flex; align-items:center; justify-content:space-between;
+  flex-shrink:0; z-index:20; position:relative;
+  background:rgba(249,249,252,.82); backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:11px}
+.brand .mark{
+  width:36px; height:36px; flex-shrink:0; border-radius:10px;
+  display:flex; align-items:center; justify-content:center; font-size:16px; overflow:hidden;
+}
+.brand .mark img{ width:100%; height:100%; object-fit:contain; display:block }
+/* 로고 파일이 없을 때의 폴백 : 액센트 박스 + 방패 이모지 */
+.brand .mark.mark-emoji{ background:var(--accent); box-shadow:0 3px 8px rgba(30,77,120,.22) }
+.brand .mark.mark-emoji::before{ content:"🛡️" }
+.logo{font-weight:800; letter-spacing:-.2px; font-size:19px; color:var(--text); line-height:1.05}
+.logo span{color:var(--blue)}
+.logo small{display:block; font-size:9.5px; letter-spacing:.4px; color:var(--dim); font-weight:600; margin-top:2px}
+.status-pill{
+  font-size:11px; padding:6px 12px; border-radius:999px; font-weight:700; letter-spacing:-.1px;
+  background:rgba(31,122,77,.15); color:#146c43; border:none;
+  display:flex; align-items:center; gap:6px;
+}
+.status-pill::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--green)}
+.status-pill.off{background:rgba(142,142,147,.14); color:var(--dim)}
+.status-pill.off::before{background:var(--dim)}
+
+/* ---------- 화면 전환 ---------- */
+.screens{flex:1; overflow:hidden; position:relative}
+.screen{position:absolute; inset:0; overflow-y:auto; display:none; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+.screen::-webkit-scrollbar{display:none}
+.screen.active{display:block; animation:fade .28s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+/* ---------- 하단 탭바 (iOS 프로스티드) ---------- */
+nav{
+  display:flex; padding:8px 6px calc(6px + env(safe-area-inset-bottom));
+  background:rgba(249,249,252,.88); backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid var(--line); flex-shrink:0; z-index:20;
+}
+nav button{
+  flex:1; background:none; border:none; color:var(--dim); font-family:inherit;
+  padding:6px 4px; font-size:10px; cursor:pointer; display:flex; flex-direction:column;
+  align-items:center; gap:3px; font-weight:600; letter-spacing:-.1px; transition:color .15s;
+}
+nav button svg{width:26px; height:26px}
+nav button.active{color:var(--blue)}
+nav button.sos-tab.active{color:var(--orange)}
+
+/* ============================================================
+   SAFE MAP
+   ============================================================ */
+.map-banner{
+  margin:14px 16px 0; padding:13px 16px; text-align:left; border-radius:16px; position:relative;
+  font-weight:700; font-size:14px; letter-spacing:-.2px;
+  background:var(--blue); color:#fff;
+  box-shadow:0 6px 18px rgba(30,77,120,.22);
+}
+.map-banner small{display:block; font-weight:500; font-size:11px; opacity:.92; margin-top:3px; letter-spacing:0}
+.map-banner.risk{background:linear-gradient(135deg,#8e8e93,#6d6d72); box-shadow:0 8px 22px rgba(110,110,114,.25)}
+
+.weather-notice{
+  margin:11px 16px 0; padding:11px 14px; border-radius:14px; font-size:11.5px; font-weight:600;
+  background:rgba(31,122,77,.13); color:#146c43;
+  display:flex; align-items:flex-start; gap:8px; line-height:1.5;
+}
+.weather-notice.danger{background:rgba(255,149,0,.14); color:#c25e00}
+.weather-notice .wx-emoji{font-size:16px; flex-shrink:0}
+.weather-notice small{display:block; font-weight:500; color:var(--dim); font-size:10px; margin-top:2px}
+
+.map-wrap{margin:14px 16px; border-radius:22px; overflow:hidden; position:relative; box-shadow:0 10px 30px rgba(0,0,0,.16); border:1px solid rgba(0,0,0,.05)}
+#liveMap{height:402px; width:100%; background:#e5e5ea; z-index:1}
+.leaflet-container{font-family:inherit}
+.leaflet-control-attribution{background:rgba(255,255,255,.72)!important; color:#6d6d72!important; font-size:9px!important}
+
+/* 위험구역 라벨(툴팁) */
+.zone-tip{
+  background:rgba(28,28,30,.92)!important; border:none!important; color:#fff!important;
+  border-radius:11px!important; font-size:10px!important; font-weight:600!important; padding:6px 10px!important;
+  box-shadow:0 6px 18px rgba(0,0,0,.35)!important;
+}
+.zone-tip::before{display:none}
+
+/* 마커 */
+.user-dot{position:relative}
+.user-dot .core{
+  width:16px;height:16px;border-radius:50%;background:#1e4d78;border:3px solid #fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.35); position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:2;
+}
+.user-dot .ring{
+  width:16px;height:16px;border-radius:50%;background:rgba(30,77,120,.35);
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); animation:ring 2s ease-out infinite;
+}
+@keyframes ring{0%{width:16px;height:16px;opacity:.8}100%{width:56px;height:56px;opacity:0}}
+.dest-pin{
+  width:24px;height:24px;border-radius:50% 50% 50% 3px; transform:rotate(45deg);
+  background:var(--green);border:3px solid #fff; box-shadow:0 3px 10px rgba(0,0,0,.35);
+  display:flex;align-items:center;justify-content:center; color:#fff;font-size:10px;font-weight:900;
+}
+.dest-pin>*{transform:rotate(-45deg)}
+.poi-pin{
+  width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);
+  box-shadow:0 2px 8px rgba(0,0,0,.28); display:flex;align-items:center;justify-content:center; font-size:12px;
+}
+.map-legend{
+  position:absolute; left:10px; bottom:10px; background:rgba(255,255,255,.86); border:1px solid rgba(0,0,0,.05);
+  border-radius:13px; padding:9px 12px; font-size:9.5px; color:#3c3c43; backdrop-filter:blur(10px); z-index:800;
+  box-shadow:0 4px 14px rgba(0,0,0,.12);
+}
+.map-legend div{display:flex; align-items:center; gap:7px; margin:2.5px 0}
+.dot{width:9px;height:9px;border-radius:3px;display:inline-block; flex-shrink:0}
+.locate-btn{
+  position:absolute; right:10px; bottom:10px; z-index:800; width:42px;height:42px;border-radius:14px;
+  background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.05); color:var(--blue); cursor:pointer;
+  display:flex;align-items:center;justify-content:center; backdrop-filter:blur(10px); box-shadow:0 4px 14px rgba(0,0,0,.14); transition:.12s;
+}
+.locate-btn:active{transform:scale(.9)}
+.report-btn{bottom:60px; font-size:16px}
+.report-btn.armed{border-color:var(--violet); background:rgba(175,82,222,.9); color:#fff}
+.map-hint{
+  position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:800;
+  background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.05); color:#3c3c43;
+  font-size:10px; font-weight:600; padding:7px 14px; border-radius:999px; backdrop-filter:blur(10px); white-space:nowrap;
+  box-shadow:0 4px 14px rgba(0,0,0,.12);
+}
+
+/* 경로 요약 카드 */
+.route-card{
+  margin:0 16px; background:var(--panel); border-radius:var(--radius);
+  padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px;
+  box-shadow:0 4px 16px rgba(0,0,0,.06);
+}
+.route-card .meta{font-size:12px; color:var(--dim); line-height:1.5; min-width:0; flex:1}
+.route-card .meta b{color:var(--text); font-size:15px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:172px; letter-spacing:-.3px}
+.eta{text-align:center; flex-shrink:0; padding:0 6px}
+.eta b{font-size:22px; color:var(--blue); display:block; line-height:1.1; letter-spacing:-.5px}
+.eta span{font-size:9.5px; color:var(--dim); letter-spacing:.4px; font-weight:600; text-transform:uppercase}
+
+/* iOS 토글 스위치 */
+.toggle{position:relative; width:51px; height:31px; flex-shrink:0; cursor:pointer}
+.toggle input{opacity:0; width:0; height:0}
+.toggle .track{position:absolute; inset:0; background:#e4e4e9; border-radius:999px; transition:.24s cubic-bezier(.4,.1,.2,1)}
+.toggle .track::after{
+  content:''; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
+  background:#fff; transition:.24s cubic-bezier(.4,.1,.2,1); box-shadow:0 3px 8px rgba(0,0,0,.18), 0 1px 1px rgba(0,0,0,.1);
+}
+.toggle input:checked + .track{background:var(--green)}
+.toggle input:checked + .track::after{transform:translateX(20px)}
+
+/* 경로 안전 점수 */
+.score-row{display:flex; gap:11px; margin:12px 16px 0}
+.score-chip{
+  flex:1; background:var(--panel); border-radius:16px;
+  padding:11px 12px; font-size:11px; color:var(--dim); font-weight:500; text-align:center;
+  cursor:pointer; user-select:none; transition:.14s; box-shadow:0 4px 16px rgba(0,0,0,.06);
+}
+.score-chip:active{transform:scale(.97)}
+.score-chip.current{box-shadow:0 0 0 2px var(--blue), 0 4px 16px rgba(30,77,120,.18)}
+.score-chip b{font-size:17px; margin:0 1px; letter-spacing:-.3px}
+.score-good{color:#146c43} .score-mid{color:#c25e00} .score-bad{color:var(--red)}
+
+/* 보호자 실시간 동행 (Guardian Escort) */
+.escort-btn{
+  margin:12px 16px 0; width:calc(100% - 32px); display:flex; align-items:center; gap:12px;
+  background:var(--panel); border:none; border-radius:16px; padding:13px 15px; cursor:pointer;
+  font-family:inherit; text-align:left; color:var(--text); box-shadow:0 4px 16px rgba(0,0,0,.06); transition:.15s;
+}
+.escort-btn:active{transform:scale(.99)}
+.escort-ico{font-size:20px; width:30px; text-align:center; flex-shrink:0}
+.escort-ico img{width:27px; height:27px; object-fit:contain; display:block; margin:0 auto}
+.escort-text{flex:1; min-width:0}
+.escort-text b{display:block; font-size:13.5px; letter-spacing:-.2px}
+.escort-text small{display:block; color:var(--dim); font-size:11px; margin-top:2px; line-height:1.4}
+.escort-state{
+  font-size:10px; font-weight:700; letter-spacing:.4px; color:var(--dim);
+  background:var(--panel2); border-radius:999px; padding:5px 10px; flex-shrink:0;
+}
+.escort-btn.active{box-shadow:0 0 0 2px var(--green), 0 4px 16px rgba(31,122,77,.16)}
+.escort-btn.active .escort-state{color:#fff; background:var(--green)}
+.escort-btn.active .escort-ico{animation:escortPulse 1.4s ease-in-out infinite}
+@keyframes escortPulse{50%{opacity:.4}}
+
+/* ============================================================
+   테마 (7종 · 하나의 축으로 통합)
+   - data-theme: light | dark | spring | summer | fall | winter | halloween
+                 (색 액센트 + 장식 + 헤더 로고를 함께 결정)
+   - data-surface: light | dark   (JS가 dark·halloween이면 dark로 설정 → 표면 밝기)
+   - data-mode:  항상 neo (둥근 iOS 룩 고정 · 과거 classic 룩은 폐기)
+   설계 : 안전=그린은 모든 테마에서 유지. 액센트/텍스트 색만 테마별로 물들이고
+          가독성(대비)은 data-surface가 보장한다 → 어떤 테마든 예측 가능 */
+.season-badge{font-size:18px; line-height:1}
+.season-badge:empty{display:none}
+
+/* --- 테마 액센트 (안전=그린은 항상 유지) --- */
+:root[data-theme="spring"]   { --blue:#d95f83; --blue-soft:#e784a0; --accent:#d95f83 }   /* 벚꽃 핑크 */
+:root[data-theme="summer"]   { --blue:#1499d6; --blue-soft:#3bb4ec; --accent:#1499d6; --orange:#dfa016 }  /* 스카이블루+선옐로 */
+:root[data-theme="fall"]     { --blue:#b5551f; --blue-soft:#cf6a2c; --accent:#b5551f; --green:#2f6d3f }   /* 러스트+포레스트그린 */
+:root[data-theme="winter"]   { --blue:#c0392b; --blue-soft:#e05648; --accent:#c0392b; --green:#1f7a4d }   /* 크리스마스 레드+그린 */
+:root[data-theme="halloween"]{ --blue:#e8730c; --blue-soft:#ff8a1f; --accent:#e8730c; --violet:#8b5cf6 } /* 오렌지+퍼플 */
+/* light / dark 테마는 기본 팔레트를 그대로 사용(표면 밝기만 다름) */
+
+/* 🎨 테마별 텍스트 색을 살짝 물들여 어울리게 (가독성은 유지) */
+:root[data-surface="light"][data-theme="spring"]{ --text:#3a2029; --dim:#7a5f68 }
+:root[data-surface="light"][data-theme="summer"]{ --text:#123243; --dim:#4f6b7a }
+:root[data-surface="light"][data-theme="fall"]  { --text:#2e1d10; --dim:#6f5a48 }
+:root[data-surface="light"][data-theme="winter"]{ --text:#241c1e; --dim:#6b5f62 }
+:root[data-surface="dark"][data-theme="halloween"]{ --text:#efe8f7; --dim:#a99fb8 }
+
+/* --- 시즌 장식(상시 내림) : 겨울=눈 · 가을=낙엽 · 봄=벚꽃잎 --- */
+/* 낙하 요소는 JS가 테마에 맞춰 생성한다(문서 하단 스크립트). CSS는 컨테이너와
+   낙하 애니메이션만 담당하며, 각 요소의 좌우 흔들림(--drift)·회전(--spin)은
+   인라인 변수로 받아 눈·꽃잎은 잔잔히, 낙엽은 빙글 돌며 떨어지게 한다 */
+.fx-layer{position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:8; display:none}
+:root[data-theme="winter"] .fx-layer,
+:root[data-theme="fall"]   .fx-layer,
+:root[data-theme="spring"] .fx-layer{display:block}
+.fx-layer span{position:absolute; top:-8%; opacity:0; will-change:transform; animation:fxfall linear infinite}
+@keyframes fxfall{
+  0%  {transform:translateY(-10%) translateX(0) rotate(0deg); opacity:0}
+  12% {opacity:.62}
+  88% {opacity:.62}
+  100%{transform:translateY(880px) translateX(var(--drift,14px)) rotate(var(--spin,0deg)); opacity:0}
+}
+
+/* --- 여름/할로윈은 '클릭한 자리'에서만 터지는 버스트 --- */
+.fx-burst{position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:40}
+.fx-burst b{
+  position:absolute; transform:translate(-50%,-50%); opacity:0; will-change:transform,opacity;
+  animation:fxburst .9s ease-out forwards;
+}
+@keyframes fxburst{
+  0%  {opacity:0; transform:translate(-50%,-50%) scale(.4) rotate(0deg)}
+  15% {opacity:1}
+  100%{opacity:0; transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot))}
+}
+/* 움직임 최소화 접근성 설정 존중 */
+@media (prefers-reduced-motion: reduce){ .fx-layer{display:none!important} .fx-burst b{animation-duration:.01ms} }
+
+/* --- 테마 선택 그리드 (7개: 4열로 4+3 배치) --- */
+.theme-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:7px}
+.theme-grid button{
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:9px 4px; border:1px solid var(--line); border-radius:12px;
+  background:var(--panel2); color:var(--dim); font-size:11px; font-weight:600;
+  cursor:pointer; transition:background .15s, color .15s;
+}
+.theme-grid button .ic{font-size:19px; line-height:1}
+.theme-grid button.active{ background:var(--accent); color:#fff; border-color:transparent }
+
+/* --- 다크 표면(surface) : dark · halloween 테마일 때 --- */
+:root[data-surface="dark"]{
+  --bg:#0f1420; --panel:#18212f; --panel2:#212b3c; --line:rgba(255,255,255,.10);
+  --text:#eaf0fb; --dim:#9aa7be;
+}
+:root[data-surface="dark"] body{ background:linear-gradient(180deg,#05070d,#04060a) }
+:root[data-surface="dark"] header,
+:root[data-surface="dark"] nav,
+:root[data-surface="dark"] .chat-head,
+:root[data-surface="dark"] .chat-input{ background:rgba(16,21,32,.82) }
+:root[data-surface="dark"] .msg.ai{ background:#222c3d; color:#eaf0fb }
+:root[data-surface="dark"] .toggle .track{ background:#39465e }
+:root[data-surface="dark"] #liveMap{ background:#0e1830 }
+:root[data-surface="dark"] .map-legend,
+:root[data-surface="dark"] .map-hint{ background:rgba(16,21,32,.85); color:#c3cde6; border-color:rgba(255,255,255,.10) }
+:root[data-surface="dark"] .locate-btn{ background:rgba(16,21,32,.85); color:var(--blue-soft); border-color:rgba(255,255,255,.10) }
+:root[data-surface="dark"] .leaflet-control-attribution{ background:rgba(16,21,32,.7)!important; color:#9aa7be!important }
+:root[data-surface="dark"] .report-panel{ background:rgba(20,26,38,.98) }
+:root[data-surface="dark"] .report-overlay{ background:rgba(0,0,0,.5) }
+:root[data-surface="dark"] .seg{ background:rgba(255,255,255,.08) }
+:root[data-surface="dark"] .seg button{ color:var(--dim) }
+:root[data-surface="dark"] .seg button.active{ background:#39465e; color:#fff; box-shadow:none }
+:root[data-surface="dark"] .rep-cats button,
+:root[data-surface="dark"] .quick-row button{ background:var(--panel2) }
+:root[data-surface="dark"] .toast{ background:rgba(16,21,32,.94) }
+:root[data-surface="dark"] .phone,
+:root[data-surface="dark"] .map-wrap{ border-color:rgba(255,255,255,.08) }
+:root[data-surface="dark"] .route-card,
+:root[data-surface="dark"] .score-chip,
+:root[data-surface="dark"] .ai-note,
+:root[data-surface="dark"] .info-card,
+:root[data-surface="dark"] .set-card,
+:root[data-surface="dark"] .profile,
+:root[data-surface="dark"] .escort-btn{ box-shadow:0 4px 16px rgba(0,0,0,.35) }
+/* 밝은 톤 전제로 하드코딩된 그린/앰버 텍스트를 다크에서 가독성 있게 */
+:root[data-surface="dark"] .status-pill{ background:rgba(52,199,89,.16); color:#4ade80 }
+:root[data-surface="dark"] .weather-notice{ color:#5fd39a }
+:root[data-surface="dark"] .weather-notice.danger{ color:#fbbf24 }
+:root[data-surface="dark"] .score-good{ color:#4ade80 }
+:root[data-surface="dark"] .score-mid{ color:#fbbf24 }
+
+/* AI 코멘트 */
+.ai-note{
+  margin:13px 16px 18px; background:var(--panel); border-radius:16px;
+  padding:13px 15px; font-size:12px; color:var(--text); display:flex; gap:11px; line-height:1.6;
+  box-shadow:0 4px 16px rgba(0,0,0,.06);
+}
+.ai-chip{
+  width:28px;height:28px;border-radius:9px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0;
+}
+
+/* ============================================================
+   AI CORE CHAT (iMessage 스타일)
+   ============================================================ */
+.chat-screen{display:flex; flex-direction:column; height:100%; background:var(--bg)}
+.chat-head{padding:13px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:11px; flex-shrink:0; background:rgba(249,249,252,.82); backdrop-filter:blur(18px)}
+.chat-head .ai-chip{width:36px;height:36px;font-size:12px;border-radius:11px}
+.chat-head b{font-size:15px; letter-spacing:-.3px}
+.chat-head small{display:block; font-size:11px; color:#146c43; font-weight:600; margin-top:1px}
+.chat-log{flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:8px}
+.msg{max-width:78%; padding:9px 14px; font-size:13px; line-height:1.45; white-space:pre-wrap; word-break:break-word; border-radius:20px; position:relative}
+.msg.user{align-self:flex-end; background:var(--blue); color:#fff; border-bottom-right-radius:6px}
+.msg.ai{align-self:flex-start; background:#e9e9eb; color:#1c1c1e; border-bottom-left-radius:6px}
+.msg.ai.typing::after{content:'●●●'; letter-spacing:2px; color:#a0a0a5; animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.35}}
+.quick-row{display:flex; gap:8px; padding:0 16px 10px; overflow-x:auto; flex-shrink:0; scrollbar-width:none}
+.quick-row::-webkit-scrollbar{display:none}
+.quick-row button{
+  flex-shrink:0; background:var(--panel); border:1px solid var(--line); color:var(--blue);
+  font-family:inherit; font-size:11.5px; padding:8px 14px; border-radius:999px; cursor:pointer; font-weight:600; transition:.12s;
+}
+.quick-row button:active{background:var(--panel2)}
+.chat-input{display:flex; gap:9px; padding:10px 16px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); flex-shrink:0; background:rgba(249,249,252,.9); backdrop-filter:blur(18px)}
+.chat-input input{
+  flex:1; background:var(--panel); border:1px solid var(--line); border-radius:999px;
+  padding:11px 17px; color:var(--text); font-family:inherit; font-size:13px; outline:none; transition:.12s;
+}
+.chat-input input:focus{border-color:var(--blue)}
+.chat-input button{
+  width:44px; height:44px; border-radius:50%; border:none; background:var(--blue); color:#fff;
+  cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:.12s;
+}
+.chat-input button:active{transform:scale(.9)}
+.chat-input button:disabled{opacity:.35}
+
+/* ============================================================
+   EMERGENCY SOS
+   ============================================================ */
+.sos-screen{padding:24px 18px calc(24px + env(safe-area-inset-bottom)); text-align:center}
+.sos-title{font-size:22px; font-weight:800; margin-bottom:5px; letter-spacing:-.5px}
+.sos-sub{font-size:12.5px; color:var(--dim); margin-bottom:26px; line-height:1.55}
+.sos-btn{
+  width:184px; height:184px; border-radius:50%; margin:0 auto 12px; border:none; cursor:pointer;
+  background:radial-gradient(circle at 34% 28%, #ff6b60, #ff3b30 72%);
+  color:#fff; font-family:inherit; font-size:36px; font-weight:800; letter-spacing:3px;
+  box-shadow:0 0 0 12px rgba(255,59,48,.10), 0 16px 40px rgba(255,59,48,.4);
+  transition:transform .12s; user-select:none;
+}
+.sos-btn:active{transform:scale(.95)}
+.sos-btn small{display:block; font-size:10.5px; font-weight:500; letter-spacing:.5px; margin-top:6px; opacity:.92}
+.sos-btn.counting{animation:pulse .8s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 20px rgba(255,59,48,.16), 0 16px 40px rgba(255,59,48,.5)}}
+.sos-status{
+  margin:16px auto 20px; font-size:12.5px; font-weight:600; min-height:38px; color:var(--dim);
+  display:flex; align-items:center; justify-content:center; line-height:1.55;
+}
+.sos-status.armed{color:#c25e00}
+.sos-status.sent{color:#146c43}
+.sos-cancel{
+  display:none; margin:0 auto 20px; background:var(--panel); border:none;
+  color:var(--red); font-family:inherit; font-weight:600; font-size:13px; padding:11px 26px; border-radius:999px; cursor:pointer;
+  box-shadow:0 4px 14px rgba(0,0,0,.08);
+}
+.info-card{
+  background:var(--panel); border-radius:var(--radius);
+  padding:6px 16px; margin-bottom:13px; text-align:left; box-shadow:0 4px 16px rgba(0,0,0,.06);
+}
+.info-card h4{font-size:13px; color:var(--text); font-weight:700; letter-spacing:-.2px; padding:12px 0 4px}
+.contact-row{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line); font-size:13px; gap:10px}
+.contact-row:first-of-type{border-top:none}
+.contact-row b{display:block; font-size:13px; font-weight:600}
+.contact-row small{color:var(--dim); font-size:11px}
+.call-chip{
+  background:rgba(31,122,77,.15); color:#146c43; border:none;
+  font-family:inherit; font-weight:700; font-size:12px; padding:8px 15px; border-radius:999px; cursor:pointer; flex-shrink:0; transition:.12s;
+}
+.call-chip:active{transform:scale(.94)}
+.loc-box{font-size:12.5px; line-height:1.7; color:#3c3c43; padding:4px 0 12px}
+.loc-box b{color:var(--text); font-weight:600}
+
+/* 안전 타이머 */
+.timer-presets{display:flex; gap:9px; padding:4px 0 14px}
+.timer-presets button{
+  flex:1; background:var(--panel2); border:none; color:var(--blue);
+  font-family:inherit; font-size:13px; font-weight:700; padding:12px 0; border-radius:13px; cursor:pointer; transition:.12s;
+}
+.timer-presets button:active{background:#e2e2e8; transform:scale(.97)}
+.timer-count{font-size:40px; font-weight:800; letter-spacing:1px; color:var(--blue); margin:6px 0 12px; font-variant-numeric:tabular-nums}
+.timer-count.warn{color:var(--orange)}
+.timer-actions{display:flex; gap:9px; padding-bottom:12px}
+.timer-actions button{flex:1; border:none; font-family:inherit; font-weight:700; font-size:13px; padding:12px 0; border-radius:13px; cursor:pointer}
+.timer-arrived{background:var(--green); color:#fff}
+.timer-stop{background:var(--panel2); color:var(--red)}
+
+/* ============================================================
+   SETTINGS (iOS 그룹형 인셋 리스트)
+   ============================================================ */
+.set-screen{padding:18px 16px calc(26px + env(safe-area-inset-bottom))}
+.profile{
+  display:flex; align-items:center; gap:13px; background:var(--panel); border-radius:var(--radius);
+  padding:16px; margin-bottom:22px; box-shadow:0 4px 16px rgba(0,0,0,.06);
+}
+.avatar{
+  width:52px;height:52px;border-radius:50%;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff; flex-shrink:0;
+  box-shadow:0 3px 8px rgba(30,77,120,.2);
+}
+.profile b{font-size:16px; display:block; letter-spacing:-.3px}
+.profile small{color:var(--dim); font-size:12px}
+.set-group{margin-bottom:22px}
+.set-group > h4{font-size:12.5px; color:var(--dim); font-weight:500; letter-spacing:-.1px; text-transform:uppercase; margin:0 16px 7px}
+.set-card{background:var(--panel); border-radius:var(--radius); overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.06)}
+.set-row{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:13px 16px; border-top:1px solid var(--line); font-size:14px;
+}
+.set-row:first-child{border-top:none}
+.set-row .desc{flex:1; font-weight:500; color:var(--text)}
+.set-row .desc small{display:block; color:var(--dim); font-size:11px; margin-top:3px; line-height:1.45; font-weight:400}
+/* iOS 세그먼트 컨트롤 */
+.seg{display:flex; background:rgba(118,118,128,.12); border-radius:9px; padding:2px}
+.seg button{
+  background:none; border:none; color:var(--text); font-family:inherit; font-size:12.5px; font-weight:500;
+  padding:6px 13px; border-radius:7px; cursor:pointer; transition:.15s;
+}
+.seg button.active{background:#fff; color:var(--text); font-weight:600; box-shadow:0 1px 4px rgba(0,0,0,.14), 0 0 1px rgba(0,0,0,.1)}
+.field-input{
+  flex:1; background:var(--panel2); border:none; border-radius:12px;
+  padding:11px 14px; color:var(--text); font-family:inherit; font-size:12.5px; outline:none; transition:.12s;
+}
+.field-input:focus{box-shadow:0 0 0 2px var(--blue) inset}
+.field-btn{
+  background:var(--blue); border:none; color:#fff; font-family:inherit; font-weight:600; font-size:12.5px;
+  padding:0 18px; border-radius:12px; cursor:pointer; flex-shrink:0; transition:.12s;
+}
+.field-btn:active{transform:scale(.96)}
+.field-note{margin-top:8px; font-size:11px; color:var(--dim)}
+/* 🔎 목적지 검색 바 */
+.dest-search{ margin:12px 16px 0; position:relative; z-index:850 }
+.dest-search-row{ display:flex; gap:8px }
+.dest-search input{
+  flex:1; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:11px 15px; color:var(--text); font-family:inherit; font-size:13px; outline:none;
+  box-shadow:0 4px 16px rgba(0,0,0,.06); transition:.12s;
+}
+.dest-search input:focus{ border-color:var(--blue) }
+.dest-search-row button{
+  width:46px; border:none; border-radius:14px; background:var(--blue); color:#fff;
+  font-size:16px; cursor:pointer; flex-shrink:0; box-shadow:0 4px 16px rgba(0,0,0,.06); transition:.12s;
+}
+.dest-search-row button:active{ transform:scale(.94) }
+.dest-results{
+  position:absolute; left:0; right:0; top:calc(100% + 6px); background:var(--panel);
+  border:1px solid var(--line); border-radius:14px; overflow-y:auto; max-height:264px;
+  box-shadow:0 12px 30px rgba(0,0,0,.18);
+}
+.dest-results:empty{ display:none }
+.dest-result-item{
+  display:block; width:100%; text-align:left; background:none; border:none; border-top:1px solid var(--line);
+  color:var(--text); font-family:inherit; font-size:12px; line-height:1.45; padding:11px 14px; cursor:pointer;
+  white-space:normal; word-break:break-word;
+}
+.dest-result-item:first-child{ border-top:none }
+.dest-result-item:active{ background:var(--panel2) }
+.dest-dist{ display:inline-block; color:var(--blue); font-weight:700; margin-right:7px; font-variant-numeric:tabular-nums }
+/* 🚶/🚗 이동 수단 세그먼트 */
+.travel-mode{ margin:12px 16px 0 }
+.travel-mode .seg{ width:100% }
+.travel-mode .seg button{ flex:1; font-size:12.5px }
+/* 언어 선택 드롭다운 */
+.lang-select{
+  -webkit-appearance:none; appearance:none;
+  background-color:var(--panel2); border:1px solid var(--line); border-radius:11px;
+  color:var(--text); font-family:inherit; font-size:12.5px; font-weight:600;
+  padding:9px 32px 9px 13px; cursor:pointer; outline:none; flex-shrink:0; max-width:60%;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 11px center; background-size:12px;
+}
+.lang-select:focus{border-color:var(--blue); box-shadow:0 0 0 3px rgba(30,77,120,.14)}
+.src-tag{
+  display:inline-block; background:var(--panel2); border:none; color:#3c3c43;
+  font-size:11px; font-weight:500; padding:6px 12px; border-radius:999px; margin:3px 3px 0 0;
+}
+
+/* ============================================================
+   커뮤니티 제보 패널 / 토스트
+   ============================================================ */
+.report-overlay{
+  position:absolute; inset:0; background:rgba(0,0,0,.32); z-index:900;
+  display:flex; align-items:flex-end; justify-content:center; backdrop-filter:blur(2px);
+  padding-bottom:14px;
+}
+.report-panel{
+  width:calc(100% - 20px); background:rgba(249,249,252,.97); border-radius:24px;
+  padding:20px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow:0 -6px 40px rgba(0,0,0,.28);
+  backdrop-filter:blur(20px); animation:sheet .3s cubic-bezier(.32,.72,0,1);
+}
+@keyframes sheet{from{transform:translateY(100%)}to{transform:none}}
+.report-panel h4{font-size:17px; margin-bottom:5px; letter-spacing:-.3px; text-align:center}
+.report-panel .rep-hint{font-size:11.5px; color:var(--dim); margin-bottom:15px; line-height:1.5; text-align:center}
+.rep-cats{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:15px}
+.rep-cats button{
+  background:var(--panel); border:1.5px solid transparent; color:var(--text); font-family:inherit;
+  font-size:12px; font-weight:600; padding:13px 4px; border-radius:14px; cursor:pointer; transition:.14s;
+  box-shadow:0 2px 8px rgba(0,0,0,.05);
+}
+.rep-cats button.active{border-color:var(--violet); color:var(--violet); background:rgba(175,82,222,.08)}
+.rep-actions{display:flex; gap:10px; margin-top:16px}
+.rep-actions button{
+  flex:1; font-family:inherit; font-weight:700; font-size:14px; padding:13px 0;
+  border-radius:14px; cursor:pointer; border:none;
+}
+#repCancel{background:var(--panel); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,.06)}
+#repSubmit{background:var(--violet); color:#fff}
+.toast{
+  position:absolute; left:50%; bottom:96px; transform:translateX(-50%) translateY(20px);
+  background:rgba(28,28,30,.92); border:none; color:#fff; font-size:12.5px; font-weight:500;
+  padding:12px 20px; border-radius:16px; opacity:0; pointer-events:none; transition:.25s; white-space:nowrap;
+  box-shadow:0 10px 30px rgba(0,0,0,.35); z-index:50; max-width:92%; text-overflow:ellipsis; overflow:hidden;
+  backdrop-filter:blur(12px);
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+/* 📱 실기기(좁은 화면)에서는 폰 목업 프레임 대신 화면 전체를 채운다 (네이티브 앱/모바일 브라우저) */
+@media (max-width:520px){
+  body{ padding:0; background:var(--bg); align-items:stretch }
+  .phone{
+    width:100%; max-width:100%; height:100vh; height:100dvh; max-height:none;
+    border-radius:0; border:none; box-shadow:none;
+  }
+  /* 상단 상태바(시계·배터리)와 겹치지 않도록 헤더에 안전영역 여백을 준다 */
+  header{ padding-top:calc(16px + env(safe-area-inset-top, 0px)) }
+}
+</style>
+<script>
+/* 저장된 테마를 최초 페인트 전에 적용(깜빡임 방지) + 구버전 값 마이그레이션 */
+(function(){
+  try{
+    var THEMES = {light:1,dark:1,spring:1,summer:1,fall:1,winter:1,halloween:1};
+    var t = localStorage.getItem('gm_theme');
+    if (!THEMES[t]){                                  // 구버전(기본/크리스마스/새해/생일 + 모드) → 신규 7테마
+      var oldMode = localStorage.getItem('gm_mode'); // neo | classic
+      if (t === 'christmas') t = 'winter';
+      else if (t === 'halloween') t = 'halloween';
+      else t = (oldMode === 'classic') ? 'dark' : 'light';
+      localStorage.setItem('gm_theme', t);
+    }
+    var r = document.documentElement;
+    var DARK = { dark:1, halloween:1 };
+    r.setAttribute('data-mode', 'neo');
+    r.setAttribute('data-theme', t);
+    r.setAttribute('data-surface', DARK[t] ? 'dark' : 'light');
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div class="phone">
+  <!-- ============ 헤더 ============ -->
+  <header>
+    <div class="brand">
+      <div class="mark" id="brandMark">
+        <!-- 테마별 방패 로고. 파일이 아직 없으면(onerror) 이모지로 대체 -->
+        <img id="brandLogo" src="logos/light.png" alt="Guardimate"
+             onerror="this.style.display='none'; this.parentNode.classList.add('mark-emoji');">
+      </div>
+      <div class="logo">Guardi<span>mate</span><small>Safety Companion</small></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:9px">
+      <span class="season-badge" id="seasonBadge"></span>
+      <div class="status-pill" id="headerPill">SAFE PATH ON</div>
+    </div>
+  </header>
+
+  <div class="screens">
+
+    <!-- ================= [탭 1] SAFE MAP ================= -->
+    <section class="screen active" id="screen-map">
+      <div class="map-banner" id="mapBanner">SAFE PATH ACTIVE<small id="bannerSub">위험 구역을 우회하는 경로가 활성화되었습니다</small></div>
+
+      <div class="weather-notice" id="weatherNotice" style="display:none"></div>
+
+      <!-- 🔎 목적지 검색 (Nominatim 지오코딩 → 목적지 설정) -->
+      <div class="dest-search">
+        <div class="dest-search-row">
+          <input type="text" id="destSearch" placeholder="목적지 검색..." autocomplete="off">
+          <button id="destSearchBtn" aria-label="검색">🔎</button>
+        </div>
+        <div class="dest-results" id="destResults"></div>
+      </div>
+
+      <div class="map-wrap">
+        <div id="liveMap"></div>
+        <div class="map-hint" id="mapHint">🖐 탭: 목적지 변경 · 🚩: 위험 제보</div>
+        <div class="map-legend">
+          <div>👮 경찰서 · 🚒 소방서 · 🏥 병원 (경로 2km)</div>
+          <div>🚨 위험/통제 뉴스 (약 30km)</div>
+          <div><span class="dot" style="background:#ef4444"></span>치안 위험</div>
+          <div><span class="dot" style="background:#f59e0b"></span>재난·침수</div>
+          <div><span class="dot" style="background:#608cff"></span>인프라 차단</div>
+          <div><span class="dot" style="background:#a855f7"></span>커뮤니티 제보</div>
+        </div>
+        <button class="locate-btn report-btn" id="reportBtn" title="위험 제보 모드">🚩</button>
+        <button class="locate-btn" id="locateBtn" title="내 위치로 재설정">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+        </button>
+      </div>
+
+      <!-- 🚶/🚗 이동 수단 (도보/자동차) -->
+      <div class="travel-mode">
+        <div class="seg" id="travelModeSeg">
+          <button class="active" data-mode="walk">🚶 도보</button>
+          <button data-mode="drive">🚗 운전</button>
+        </div>
+      </div>
+
+      <div class="route-card">
+        <div class="meta">
+          <b id="destName">목적지 탐색 중...</b>
+          <span id="routeMeta">경로 계산 중...</span>
+        </div>
+        <div class="eta"><b id="etaVal">—</b><span>ETA</span></div>
+        <label class="toggle" title="Safe Path">
+          <input type="checkbox" id="safeToggle" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+
+      <div class="score-row" id="scoreRow" style="display:none">
+        <div class="score-chip" id="scoreSafe"></div>
+        <div class="score-chip" id="scoreShort"></div>
+      </div>
+
+      <!-- 🛡 보호자 실시간 동행(Guardian Escort) -->
+      <button class="escort-btn" id="escortBtn">
+        <span class="escort-ico" id="escortIco"><img id="escortLogo" src="logos/light.png" alt="" onerror="this.replaceWith(document.createTextNode('🛡️'))"></span>
+        <span class="escort-text">
+          <b id="escortTitle">보호자 동행 시작</b>
+          <small id="escortSub">실시간 위치·경로 이탈을 보호자에게 공유</small>
+        </span>
+        <span class="escort-state" id="escortState">OFF</span>
+      </button>
+
+      <div class="ai-note">
+        <div class="ai-chip">AI</div>
+        <div id="aiNote">현재 위치를 확인하고 있어요. 위치 권한을 허용하면 실제 내 위치 기준으로 안전 경로를 계산합니다.</div>
+      </div>
+    </section>
+
+    <!-- ================= [탭 2] AI CORE CHAT ================= -->
+    <section class="screen" id="screen-chat">
+      <div class="chat-screen">
+        <div class="chat-head">
+          <div class="ai-chip">AI</div>
+          <div><b>GUARDIMATE AI</b><small>● 온라인 · 지도 연동됨</small></div>
+        </div>
+        <div class="chat-log" id="chatLog">
+          <div class="msg ai">안녕하세요! GUARDIMATE AI 안전 비서입니다. 🛡️
+현재 Safe Map과 연동되어 있어요. 경로, 주변 위험 정보, 응급 대처 요령 등 무엇이든 물어보세요.</div>
+        </div>
+        <div class="quick-row">
+          <button data-q="여기서 가장 안전한 경로가 어디야?">🗺️ 가장 안전한 경로는?</button>
+          <button data-q="지금 내 주변에 어떤 위험이 있어?">⚠️ 주변 위험 요약</button>
+          <button data-q="밤 늦게 혼자 귀가할 때 안전 수칙 알려줘">🌙 심야 귀가 수칙</button>
+          <button data-q="응급 상황이 생기면 어떻게 해야 해?">🚨 응급 대처 요령</button>
+        </div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="메시지를 입력하세요..." autocomplete="off">
+          <button id="chatSend" aria-label="전송">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= [탭 3] EMERGENCY SOS ================= -->
+    <section class="screen" id="screen-sos">
+      <div class="sos-screen">
+        <div class="sos-title">원터치 응급 SOS</div>
+        <div class="sos-sub">버튼을 누르면 5초 후 응급 연락처로<br>현재 위치와 긴급 알림이 전송됩니다</div>
+
+        <button class="sos-btn" id="sosBtn">SOS<small>탭하여 활성화</small></button>
+        <div class="sos-status" id="sosStatus">대기 중</div>
+        <button class="sos-cancel" id="sosCancel">전송 취소</button>
+
+        <div class="info-card">
+          <h4>⏱ 안전 타이머 · 도착 체크인</h4>
+          <div style="font-size:11.5px;color:var(--dim);line-height:1.5;padding-bottom:11px">
+            예상 이동 시간을 설정하세요. 시간 내에 '무사 도착'을 누르지 않으면
+            보호자에게 마지막 위치와 함께 미응답 알림이 자동 전송됩니다.
+          </div>
+          <div class="timer-presets" id="timerIdle">
+            <button data-min="15">15분</button>
+            <button data-min="30">30분</button>
+            <button data-min="60">60분</button>
+          </div>
+          <div id="timerActive" style="display:none; text-align:center">
+            <div class="timer-count" id="timerCount">00:00</div>
+            <div class="timer-actions">
+              <button class="timer-arrived" id="timerArrived">✅ 무사 도착</button>
+              <button class="timer-stop" id="timerStop">타이머 취소</button>
+            </div>
+          </div>
+          <div id="timerStatus" style="padding-bottom:12px; font-size:11px; color:var(--dim); display:none"></div>
+        </div>
+
+
+        <div class="info-card">
+          <h4>🚓 현지 긴급 연락처</h4>
+          <div class="contact-row">
+            <div><b>긴급 신고 (경찰·소방·구급)</b><small>현지 통합 긴급번호 (호주 000 · 미국 911)</small></div>
+            <button class="call-chip" data-name="긴급 신고">발신</button>
+          </div>
+          <div class="contact-row" id="consulateRow">
+            <div><b>대한민국 영사콜센터</b><small>해외 사건·사고 24시간 접수</small></div>
+            <button class="call-chip" data-name="영사콜센터" data-number="+82-2-3210-0404">+82-2-3210-0404</button>
+          </div>
+          <div class="contact-row">
+            <div><b>지정 보호자</b><small id="guardianSub">Emergency Contact · SOS 자동 전송 대상</small></div>
+            <button class="call-chip" data-name="보호자" id="guardianCallBtn">발신</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= [탭 4] SETTINGS ================= -->
+    <section class="screen" id="screen-set">
+      <div class="set-screen">
+        <div class="profile">
+          <div class="avatar">이</div>
+          <div><b>안녕하세요, 사용자님!</b><small id="profileLoc">해외 체류 중 · 위치 확인 중</small></div>
+        </div>
+
+        <!-- 🌐 표시 언어 -->
+        <div class="set-group">
+          <h4>언어 / Language</h4>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="desc">앱 표시 언어 · App language</div>
+              <select class="lang-select" id="langSelect" aria-label="App language">
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+                <option value="ja">日本語</option>
+                <option value="zh">中文</option>
+                <option value="es">Español</option>
+                <option value="de">Deutsch</option>
+                <option value="fr">Français</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 🎨 테마 (색·밝기·장식·로고가 함께 바뀜) -->
+        <div class="set-group">
+          <h4>테마</h4>
+          <div class="set-card">
+            <div class="set-row" style="display:block">
+              <div class="desc" style="margin-bottom:11px">테마 선택<small>색 · 밝기 · 장식 · 로고가 함께 바뀝니다 (안전=그린은 항상 유지)</small></div>
+              <div class="theme-grid" id="themeSeg">
+                <button data-theme="light"><span class="ic">💡</span><span class="tl">Light</span></button>
+                <button data-theme="dark"><span class="ic">🌙</span><span class="tl">Dark</span></button>
+                <button data-theme="spring"><span class="ic">🌸</span><span class="tl">봄</span></button>
+                <button data-theme="summer"><span class="ic">☀️</span><span class="tl">여름</span></button>
+                <button data-theme="fall"><span class="ic">🍁</span><span class="tl">가을</span></button>
+                <button data-theme="winter"><span class="ic">🎄</span><span class="tl">겨울</span></button>
+                <button data-theme="halloween"><span class="ic">🎃</span><span class="tl">할로윈</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <h4>위험 알림 설정</h4>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="desc">치안 및 위험 동향<small>심야 우범 구역 · 주취자 대치 · 가로등 결함</small></div>
+              <label class="toggle"><input type="checkbox" class="zoneToggle" data-zone="crime" checked><span class="track"></span></label>
+            </div>
+            <div class="set-row">
+              <div class="desc">실시간 재난 경보<small>침수 위험 구역 · 태풍 · 산불 등 물리적 긴급 경보</small></div>
+              <label class="toggle"><input type="checkbox" class="zoneToggle" data-zone="disaster" checked><span class="track"></span></label>
+            </div>
+            <div class="set-row">
+              <div class="desc">인프라 차단 정보<small>도로 파손 · 긴급 굴착 공사 · 교통 통제</small></div>
+              <label class="toggle"><input type="checkbox" class="zoneToggle" data-zone="infra" checked><span class="track"></span></label>
+            </div>
+            <div class="set-row">
+              <div class="desc">커뮤니티 제보 구역<small>사용자들이 직접 제보한 위험 · 지도를 길게 눌러 제보</small></div>
+              <label class="toggle"><input type="checkbox" class="zoneToggle" data-zone="report" checked><span class="track"></span></label>
+            </div>
+            <div class="set-row">
+              <div class="desc">심야 위험 가중<small>야간(21~06시)에 치안 구역 반경 자동 확대 · 우회 강화</small></div>
+              <label class="toggle"><input type="checkbox" id="nightToggle" checked><span class="track"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <h4>지도 스타일</h4>
+          <div class="set-card">
+            <div class="set-row">
+              <div class="desc">지도 테마</div>
+              <div class="seg" id="mapStyleSeg">
+                <button class="active" data-style="dark">다크</button>
+                <button data-style="standard">표준</button>
+                <button data-style="satellite">위성</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <h4>응급 연락처 관리</h4>
+          <div class="set-card">
+            <div class="set-row" style="display:block">
+              <div class="desc" style="margin-bottom:9px">지정 보호자 번호<small>SOS 발생 시 위치·알림 자동 전송 대상</small></div>
+              <div style="display:flex; gap:8px">
+                <input type="tel" id="guardianInput" placeholder="예: 010-1234-5678" class="field-input">
+                <button id="guardianSave" class="field-btn">저장</button>
+              </div>
+              <div id="guardianStatus" class="field-note">번호가 등록되지 않았습니다</div>
+            </div>
+            <div class="set-row">
+              <div class="desc">영사콜센터 연동<small>해외 사건·사고 접수 시 안내 · +82-2-3210-0404</small></div>
+              <label class="toggle"><input type="checkbox" id="consulateToggle" checked><span class="track"></span></label>
+            </div>
+            <div class="set-row">
+              <div class="desc">🧪 타이머 테스트 모드<small>안전 타이머를 15초로 단축 실행 · 텔레그램 알림 동작 확인용</small></div>
+              <label class="toggle"><input type="checkbox" id="timerTestToggle"><span class="track"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <h4>AI 연결</h4>
+          <div class="set-card">
+            <div class="set-row" style="display:block">
+              <div class="desc" style="margin-bottom:9px">AI Core Chat 연결 방식<small>기본 내장 Gemini API 키로 자동 연결됩니다. 다른 키를 쓰려면 아래에 입력하세요. 연결 실패 시 내장 오프라인 어시스턴트가 대신 답변합니다.</small></div>
+              <div style="display:flex; gap:8px">
+                <input type="password" id="apiKeyInput" placeholder="AIza... (Gemini API 키)" class="field-input">
+                <button id="apiKeySave" class="field-btn">저장</button>
+              </div>
+              <div id="aiConnStatus" class="field-note">연결 상태: 첫 메시지 전송 시 자동 판별</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="set-group">
+          <h4>데이터 소스 공개</h4>
+          <div class="set-card">
+            <div class="set-row" style="display:block">
+              <div class="desc" style="margin-bottom:7px">본 서비스는 아래 출처의 데이터를 투명하게 활용합니다</div>
+              <span class="src-tag">🗺 OpenStreetMap (지도·도로망)</span>
+              <span class="src-tag">🧭 OSRM (도보 경로)</span>
+              <span class="src-tag">🏢 Overpass API (경찰서·소방서·병원, 도로 그래프)</span>
+              <span class="src-tag">📍 Nominatim (역지오코딩)</span>
+              <span class="src-tag">🌦 OpenWeatherMap (실시간 날씨)</span>
+              <span class="src-tag">📰 GNews (위험·통제 뉴스)</span>
+              <span class="src-tag">🤖 Google Gemini (AI 챗봇)</span>
+              <div style="margin-top:9px;font-size:11px;color:var(--dim)">지도 © OpenStreetMap contributors · Leaflet<br>※ 데모의 위험 구역(치안·재난·인프라)은 시연용 시뮬레이션 데이터입니다</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ============ 하단 탭 바 ============ -->
+  <nav>
+    <button class="active" data-screen="screen-map">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      Safe Map
+    </button>
+    <button data-screen="screen-chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      AI Core Chat
+    </button>
+    <button class="sos-tab" data-screen="screen-sos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Emergency
+    </button>
+    <button data-screen="screen-set">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <!-- ============ 커뮤니티 위험 제보 패널 (iOS 바텀시트) ============ -->
+  <div class="report-overlay" id="reportOverlay" style="display:none">
+    <div class="report-panel">
+      <h4>🚩 커뮤니티 위험 제보</h4>
+      <div class="rep-hint">이 위치의 위험을 다른 사용자와 공유합니다. 제보 구역은 즉시 안전 경로 회피 계산에 반영됩니다.</div>
+      <div class="rep-cats" id="repCats">
+        <button class="active">💡 가로등 고장</button>
+        <button>🚧 공사·통제</button>
+        <button>🌊 침수·물웅덩이</button>
+        <button>⚠ 위협·치안 불안</button>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between">
+        <span style="font-size:12px; color:var(--dim); font-weight:500">유지 시간</span>
+        <div class="seg" id="repDurs">
+          <button data-h="1">1시간</button>
+          <button class="active" data-h="6">6시간</button>
+          <button data-h="24">24시간</button>
+        </div>
+      </div>
+      <div class="rep-actions">
+        <button id="repCancel">취소</button>
+        <button id="repSubmit">제보 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ❄🍁🌸 상시 낙하 장식(겨울=눈 · 가을=낙엽 · 봄=벚꽃) : JS가 테마에 맞춰 채움 -->
+  <div class="fx-layer" id="fxLayer" aria-hidden="true"></div>
+  <!-- 🎃☀️ 여름/할로윈 : 클릭한 자리에서만 터지는 버스트가 여기에 그려짐 -->
+  <div class="fx-burst" id="fxBurst" aria-hidden="true"></div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<!-- 앱 스크립트 : 기존 로직 그대로 재사용 · 파일 간 의존성 순서 유지 -->
+<script src="js/core.js"></script>
+<script src="js/map.js"></script>
+<script src="js/zones.js"></script>
+<script src="js/routing.js"></script>
+<script src="js/scenario.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/emergency.js"></script>
+<script src="js/escort.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/main.js"></script>
+<script src="js/i18n.js"></script>
+<script>
+/* 테마 전환 (neo 전용 · localStorage 유지) : 색·밝기·장식·로고를 함께 바꾼다 */
+(function(){
+  var r = document.documentElement;
+  var THEMES = {light:1,dark:1,spring:1,summer:1,fall:1,winter:1,halloween:1};
+  var DARK_THEMES = { dark:1, halloween:1 };       // 다크 표면을 쓰는 테마
+  var THEME_BADGE = { spring:'🌸', summer:'☀️', fall:'🍁', winter:'🎄', halloween:'🎃' };
+
+  /* 네이티브(Capacitor) 앱에서 상단 상태바 아이콘 색을 앱 표면(밝기)에 맞춘다.
+     밝은 표면 → 어두운 아이콘(LIGHT), 어두운 표면 → 밝은 아이콘(DARK).
+     일반 브라우저에선 window.Capacitor가 없어 아무 일도 하지 않는다(무해). */
+  function gmSyncStatusBar(){
+    try {
+      if (!window.Capacitor || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
+      var SB = Capacitor.Plugins && Capacitor.Plugins.StatusBar;
+      if (!SB || !SB.setStyle) return;
+      var dark = r.getAttribute('data-surface') === 'dark';
+      SB.setStyle({ style: dark ? 'DARK' : 'LIGHT' }).catch(function(){});
+    } catch(e){}
+  }
+  function markActive(val){
+    var seg = document.getElementById('themeSeg'); if (!seg) return;
+    seg.querySelectorAll('button').forEach(function(b){ b.classList.toggle('active', b.dataset.theme === val); });
+  }
+
+  /* 상시 낙하 장식 채우기 : 겨울=눈 · 가을=낙엽(빨강/주황/노랑) · 봄=벚꽃 */
+  var FALL_SETS = {
+    winter: { glyphs:['❄','❅','❆'],   count:9,  spin:0,   size:[10,15], dur:[16,24] },
+    fall:   { glyphs:['🍁','🍂','🍃'], count:12, spin:360, size:[13,20], dur:[9,16]  },
+    spring: { glyphs:['🌸','🌸','🌷'], count:11, spin:130, size:[11,17], dur:[12,20] }
+  };
+  function fillFxLayer(theme){
+    var layer = document.getElementById('fxLayer'); if (!layer) return;
+    layer.innerHTML = '';
+    var cfg = FALL_SETS[theme]; if (!cfg) return;
+    for (var i=0;i<cfg.count;i++){
+      var s = document.createElement('span');
+      s.textContent = cfg.glyphs[(Math.random()*cfg.glyphs.length)|0];
+      s.style.left = (Math.random()*96) + '%';
+      s.style.fontSize = (cfg.size[0] + Math.random()*(cfg.size[1]-cfg.size[0])).toFixed(0) + 'px';
+      var dur = cfg.dur[0] + Math.random()*(cfg.dur[1]-cfg.dur[0]);
+      s.style.animationDuration = dur.toFixed(1) + 's';
+      s.style.animationDelay = (-Math.random()*dur).toFixed(1) + 's';   // 이미 떨어지는 중인 상태로 시작
+      s.style.setProperty('--drift', ((Math.random()*40-20)|0) + 'px');
+      s.style.setProperty('--spin', (cfg.spin ? (((Math.random()*2-1)*cfg.spin)|0) : 0) + 'deg');
+      layer.appendChild(s);
+    }
+  }
+
+  function applyTheme(t){
+    if (!THEMES[t]) t = 'light';
+    r.setAttribute('data-mode', 'neo');
+    r.setAttribute('data-theme', t);
+    r.setAttribute('data-surface', DARK_THEMES[t] ? 'dark' : 'light');
+    localStorage.setItem('gm_theme', t);
+    gmSyncStatusBar();
+    /* 헤더 방패 로고를 테마에 맞게 교체 (파일이 없으면 img onerror가 이모지로 폴백) */
+    var logo = document.getElementById('brandLogo'), mk = document.getElementById('brandMark');
+    if (logo){ logo.style.display = ''; if (mk) mk.classList.remove('mark-emoji'); logo.src = 'logos/' + t + '.png'; }
+    /* 브라우저 탭/홈화면 아이콘(파비콘)도 테마에 맞춰 교체 */
+    var fav = document.getElementById('favicon'), apple = document.getElementById('appleIcon');
+    if (fav)   fav.href   = 'logos/' + t + '.png';
+    if (apple) apple.href = 'logos/' + t + '.png';
+    /* 보호자 동행 카드의 방패 아이콘도 테마에 맞춰 교체 */
+    var escLogo = document.getElementById('escortLogo');
+    if (escLogo && escLogo.tagName === 'IMG') escLogo.src = 'logos/' + t + '.png';
+    var badge = document.getElementById('seasonBadge');
+    if (badge) badge.textContent = THEME_BADGE[t] || '';
+    fillFxLayer(t);
+    markActive(t);
+    /* 지도는 표면 전환 후 크기 정보가 깨질 수 있어 재계산 */
+    if (window.map && map.invalidateSize) setTimeout(function(){ map.invalidateSize(); }, 90);
+  }
+
+  var themeSeg = document.getElementById('themeSeg');
+  if (themeSeg) themeSeg.addEventListener('click', function(e){ var b = e.target.closest('button'); if (b) applyTheme(b.dataset.theme); });
+
+  applyTheme(localStorage.getItem('gm_theme') || 'light');
+
+  /* --- 클릭 시 '그 자리'에서 터지는 버스트 (여름/할로윈) --- */
+  var BURST = {
+    summer:    ['☀️','🌊','🍉','🌴','🐬'],
+    halloween: ['🦇','👻','🕷️','🕸️']
+  };
+  var phone = document.querySelector('.phone');
+  var burstBox = document.getElementById('fxBurst');
+  function spawnBurst(clientX, clientY){
+    var set = BURST[r.getAttribute('data-theme')];
+    if (!set || !phone || !burstBox) return;
+    var rect = phone.getBoundingClientRect();
+    var x = clientX - rect.left, y = clientY - rect.top;
+    for (var i = 0; i < 9; i++){
+      var s = document.createElement('b');
+      s.textContent = set[(Math.random() * set.length) | 0];
+      var ang = Math.random() * Math.PI * 2;
+      var dist = 26 + Math.random() * 54;
+      s.style.left = x + 'px';
+      s.style.top  = y + 'px';
+      s.style.fontSize = (14 + Math.random() * 12) + 'px';
+      s.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+      s.style.setProperty('--dy', (Math.sin(ang) * dist - 22).toFixed(1) + 'px'); // 살짝 위로 솟구치게
+      s.style.setProperty('--rot', ((Math.random() * 120 - 60) | 0) + 'deg');
+      s.style.animationDelay = (Math.random() * 0.08).toFixed(2) + 's';
+      s.addEventListener('animationend', function(){ this.remove(); });
+      burstBox.appendChild(s);
+    }
+  }
+  /* 지도 이동/버튼 동작을 막지 않도록 캡처하지 않고 관찰만 한다(패시브) */
+  if (phone) phone.addEventListener('pointerdown', function(e){ spawnBurst(e.clientX, e.clientY); }, {passive:true});
+})();
+</script>
+<script>
+/* 네이티브(Capacitor Android) 앱으로 실행될 때만 시작 시 위치 권한을 요청한다.
+   일반 브라우저에서는 window.Capacitor가 없어 아무 일도 하지 않는다(무해). */
+(function(){
+  try {
+    if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+      var geo = Capacitor.Plugins && Capacitor.Plugins.Geolocation;
+      if (geo && geo.requestPermissions) geo.requestPermissions().catch(function(){});
+    }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>
